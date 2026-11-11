@@ -97,6 +97,15 @@ the summarized minimum, median, and maximum; preserve the tensor-byte totals for
 
 ## Diagnosis
 
+### Direct verdict
+
+**No. A direct `ActivationCache.__repr__` defect has not been reproduced in this checkout.**
+
+No runtime reproduction, probe result, or completed test currently demonstrates that
+`ActivationCache.__repr__` hangs a notebook or performs expensive tensor rendering. Source
+inspection shows that its implementation formats key names only. That code finding is not a
+substitute for a runtime reproduction; the measurements and tests remain pending.
+
 ### Established
 
 - The default `HookedTransformer.run_with_cache` result is an `ActivationCache`.
