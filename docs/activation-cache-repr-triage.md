@@ -73,25 +73,27 @@ existing guard nevertheless avoids the general costly-partial-repr failure mode.
 **Status: pending.** No probe timings have been collected from this branch. Do not interpret the
 absence of values below as zero cost or use estimated timings.
 
-The branch contains `debugging/activation_cache_repr_probe.py`. It asserts that it imports
-`transformer_lens/ActivationCache.py` from this checkout, then times `repr(cache)` repeatedly
-over two independent sweeps:
-
-1. Fixed key count, increasing tensor size per cached value.
-2. Fixed tensor size, increasing key count.
-
-It also uses a real `torch.Tensor` subclass whose `__repr__` raises, confirming that the
-`ActivationCache` representation does not render cached values.
-
-Run:
+Run the measurement command from the repository root:
 
 ```bash
 uv run python debugging/activation_cache_repr_probe.py
 ```
 
-Expected measurement fields are `repr_characters`, raw timing samples, minimum, median, mean,
-key count, and tensor-byte totals. Results should be added here only after that command runs in the
-actual checkout.
+| Sweep | Fixed dimension | Varied dimension | `repr(cache)` | `repr(cache.cache_dict)` | `list(cache.items())` | Min | Median | Max |
+|---|---|---|---:|---:|---:|---:|---:|---:|
+| Tensor size | 100 keys | 1 element/key | Pending | Pending | Pending | Pending | Pending | Pending |
+| Tensor size | 100 keys | 1,024 elements/key | Pending | Pending | Pending | Pending | Pending | Pending |
+| Tensor size | 100 keys | 65,536 elements/key | Pending | Pending | Pending | Pending | Pending | Pending |
+| Key count | 1 element/key | 1 key | Pending | Pending | Pending | Pending | Pending | Pending |
+| Key count | 1 element/key | 10 keys | Pending | Pending | Pending | Pending | Pending | Pending |
+| Key count | 1 element/key | 100 keys | Pending | Pending | Pending | Pending | Pending | Pending |
+| Key count | 1 element/key | 1,000 keys | Pending | Pending | Pending | Pending | Pending | Pending |
+| Key count | 1 element/key | 10,000 keys | Pending | Pending | Pending | Pending | Pending | Pending |
+
+The probe currently verifies checkout provenance and records repeated `repr(cache)` timings. Before
+filling the `repr(cache.cache_dict)` and `list(cache.items())` columns, extend the probe to time
+those operations separately using the same repeated-trial protocol. Record raw samples alongside
+the summarized minimum, median, and maximum; preserve the tensor-byte totals for each row.
 
 ## Diagnosis
 
