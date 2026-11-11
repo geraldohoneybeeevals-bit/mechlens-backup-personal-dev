@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Measure ActivationCache repr cost along two independent dimensions.
+"""Measure ActivationCache representation costs along two independent dimensions.
 
 Run from any directory with:
 
@@ -9,9 +9,16 @@ The probe prepends this checkout to sys.path and then asserts that the imported
 ActivationCache implementation is exactly transformer_lens/ActivationCache.py
 from this repository. It will fail instead of silently using an installed copy.
 
-It measures only repr(cache), not cache construction, over repeated trials:
-1. fixed number of keys while each cached tensor gets larger;
-2. fixed tensor size while the number of cache keys grows.
+It measures three display-adjacent operations over repeated trials:
+- repr(cache)
+- repr(cache.cache_dict)
+- list(cache.items())
+
+Each operation is measured for:
+1. a fixed number of keys while each cached tensor gets larger;
+2. a fixed tensor size while the number of cache keys grows.
+
+Cache construction is deliberately outside each timed region.
 """
 
 from __future__ import annotations
@@ -24,7 +31,7 @@ import statistics
 import sys
 from pathlib import Path
 from time import perf_counter
-from typing import Any, Callable, Sequence
+from typing import Any, Callable
 
 import torch
 
@@ -78,21 +85,32 @@ def make_cache(
     )
 
 
-def time_repr(cache: Any, repeats: int) -> dict[str, Any]:
-    """Time only repr(cache), retaining each result for a consistency check."""
+def time_operation(operation: Callable[[], Any], repeats: int) -> dict[str, Any]:
+    """Time one operation repeatedly and retain its output-size signal."""
     samples = []
-    representation = ""
+    result_size = 0
     for _ in range(repeats):
         started = perf_counter()
-        representation = repr(cache)
+        result = operation()
         samples.append(perf_counter() - started)
+        result_size = len(result)
 
     return {
-        "repr_characters": len(representation),
+        "result_size": result_size,
         "seconds": samples,
         "min_seconds": min(samples),
         "median_seconds": statistics.median(samples),
+        "max_seconds": max(samples),
         "mean_seconds": statistics.fmean(samples),
+    }
+
+
+def measure_cache(cache: Any, repeats: int) -> dict[str, dict[str, Any]]:
+    """Measure each display-adjacent cache operation independently."""
+    return {
+        "repr_cache": time_operation(lambda: repr(cache), repeats),
+        "repr_cache_dict": time_operation(lambda: repr(cache.cache_dict), repeats),
+        "cache_items": time_operation(lambda: list(cache.items()), repeats),
     }
 
 
@@ -104,6 +122,25 @@ def comma_separated_positive_ints(value: str) -> list[int]:
     if not parsed or any(item <= 0 for item in parsed):
         raise argparse.ArgumentTypeError("all values must be positive")
     return parsed
+
+
+def summarize_measurement(
+    cache: Any,
+    key_count: int,
+    tensor_elements: int,
+    tensor_bytes_per_element: int,
+    repeats: int,
+) -> dict[str, Any]:
+    result = measure_cache(cache, repeats)
+    result.update(
+        {
+            "key_count": key_count,
+            "tensor_elements_per_key": tensor_elements,
+            "tensor_bytes_per_key": tensor_elements * tensor_bytes_per_element,
+            "total_tensor_bytes": key_count * tensor_elements * tensor_bytes_per_element,
+        }
+    )
+    return result
 
 
 def main() -> None:
@@ -135,6 +172,7 @@ def main() -> None:
     )
     assert "ValueMustNotBeRendered" not in repr(sentinel_cache)
 
+    tensor_bytes_per_element = torch.empty(0).element_size()
     tensor_size_sweep = []
     for tensor_elements in args.tensor_elements:
         cache = make_cache(
@@ -142,20 +180,15 @@ def main() -> None:
             args.fixed_keys,
             lambda: torch.empty(tensor_elements),
         )
-        result = time_repr(cache, args.repeats)
-        result.update(
-            {
-                "key_count": args.fixed_keys,
-                "tensor_elements_per_key": tensor_elements,
-                "tensor_bytes_per_key": tensor_elements * torch.empty(0).element_size(),
-                "total_tensor_bytes": (
-                    args.fixed_keys
-                    * tensor_elements
-                    * torch.empty(0).element_size()
-                ),
-            }
+        tensor_size_sweep.append(
+            summarize_measurement(
+                cache,
+                args.fixed_keys,
+                tensor_elements,
+                tensor_bytes_per_element,
+                args.repeats,
+            )
         )
-        tensor_size_sweep.append(result)
 
     key_count_sweep = []
     for key_count in args.key_counts:
@@ -164,22 +197,15 @@ def main() -> None:
             key_count,
             lambda: torch.empty(args.fixed_tensor_elements),
         )
-        result = time_repr(cache, args.repeats)
-        result.update(
-            {
-                "key_count": key_count,
-                "tensor_elements_per_key": args.fixed_tensor_elements,
-                "tensor_bytes_per_key": (
-                    args.fixed_tensor_elements * torch.empty(0).element_size()
-                ),
-                "total_tensor_bytes": (
-                    key_count
-                    * args.fixed_tensor_elements
-                    * torch.empty(0).element_size()
-                ),
-            }
+        key_count_sweep.append(
+            summarize_measurement(
+                cache,
+                key_count,
+                args.fixed_tensor_elements,
+                tensor_bytes_per_element,
+                args.repeats,
+            )
         )
-        key_count_sweep.append(result)
 
     print(
         json.dumps(
