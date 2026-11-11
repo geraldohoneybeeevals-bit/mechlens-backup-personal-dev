@@ -150,6 +150,10 @@ reproduced a direct `ActivationCache.__repr__` hang, so we are holding off on tr
 until we have measurements separating cache construction, repr generation, and notebook frontend
 rendering. We have added a focused regression test and a probe for that measurement.
 
+Could you share the exact TransformerLens version you are running and the exact notebook line that
+prints or displays the cache (for example, `cache`, `print(cache)`, or `display(cache)`)? That
+will let us reproduce the same display path.
+
 ## Next steps
 
 1. Run the focused representation regression test:
