@@ -13,6 +13,13 @@ reproduction, a root cause, or a proposed fix for this behavior.
 This triage applies to `mechlens-backup-personal-dev`, branch
 `investigate/activation-cache-repr-1126`.
 
+The reporter suggested truncating the representation. We are holding off on that behavior change:
+no direct `ActivationCache.__repr__` defect has been reproduced, and the implementation does not
+render cached tensors. Truncation could reduce the size of a notebook's key-list output, but there
+is not yet evidence that that output is the bottleneck; changing it now could mask cache
+construction, device-transfer, memory-pressure, or frontend-rendering costs.
+
+
 ## What the code actually does
 
 ### The normal `HookedTransformer.run_with_cache` path returns an `ActivationCache`
@@ -133,6 +140,15 @@ substitute for a runtime reproduction; the measurements and tests remain pending
    if kernel-side `repr(cache)` is quick.
 
 These are hypotheses, not conclusions from the current report.
+
+## Proposed reply for #1126 (draft — do not post)
+
+Thanks for the report and the truncation suggestion. We traced the default
+`HookedTransformer.run_with_cache()` path: it returns an `ActivationCache`, but its current
+representation lists cache key names only and does not render activation tensors. We have not yet
+reproduced a direct `ActivationCache.__repr__` hang, so we are holding off on truncating the repr
+until we have measurements separating cache construction, repr generation, and notebook frontend
+rendering. We have added a focused regression test and a probe for that measurement.
 
 ## Next steps
 
