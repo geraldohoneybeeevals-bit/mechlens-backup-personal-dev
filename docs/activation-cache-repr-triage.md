@@ -97,10 +97,10 @@ uv run python debugging/activation_cache_repr_probe.py
 | Key count | 1 element/key | 1,000 keys | Pending | Pending | Pending | Pending | Pending | Pending |
 | Key count | 1 element/key | 10,000 keys | Pending | Pending | Pending | Pending | Pending | Pending |
 
-The probe currently verifies checkout provenance and records repeated `repr(cache)` timings. Before
-filling the `repr(cache.cache_dict)` and `list(cache.items())` columns, extend the probe to time
-those operations separately using the same repeated-trial protocol. Record raw samples alongside
-the summarized minimum, median, and maximum; preserve the tensor-byte totals for each row.
+The probe verifies checkout provenance and records repeated timings for all three operations:
+`repr(cache)`, `repr(cache.cache_dict)`, and `list(cache.items())`. Its JSON output retains raw
+samples plus each operation's minimum, median, maximum, and mean. Preserve those raw samples and
+the tensor-byte totals when filling this table.
 
 ## Diagnosis
 
