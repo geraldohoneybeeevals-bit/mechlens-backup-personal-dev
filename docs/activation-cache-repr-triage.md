@@ -1,5 +1,9 @@
 # ActivationCache repr triage (#1126)
 
+**Is `ActivationCache.__repr__` itself the problem in this checkout? No.** The source and CPU measurements do not support the report's implied tensor-size-driven slowdown: repr formats only keys and never touches cached tensor values. With eight fixed keys, increasing tensor payload from 32 bytes to 512 MiB kept repr at about 0.9 microseconds and 202 characters.
+
+This verdict does not establish the notebook hang's actual cause. Key count still matters: 100,000 keys took about 6.24 ms to format and produced 2.2 million characters; notebook transport and rendering were not measured. Reproduce the exact failing expression before changing behavior.
+
 Investigation branch: `investigate/activation-cache-repr-1126`. Runtime behavior is unchanged. Source inspected at base commit `33387b7def1ead3a8cba532a729da5599e875873`; the real-tensor probe was run at `6580eefe4138069b50fbbb797a6323e586ca8517`.
 
 ## What the report says
