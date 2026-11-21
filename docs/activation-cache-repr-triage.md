@@ -1,14 +1,14 @@
 # ActivationCache repr triage (#1126)
 
-**Is `ActivationCache.__repr__` itself the problem in this checkout? No.** The source and CPU measurements do not support the report's implied tensor-size-driven slowdown: repr formats only keys and never touches cached tensor values. With eight fixed keys, increasing tensor payload from 32 bytes to 512 MiB kept repr at about 0.9 microseconds and 202 characters.
+**Is `ActivationCache.__repr__` itself established as the cause in this checkout? No.** No evidence currently implicates it as the cause of the reported hang. The source shows that repr formats only keys and never touches cached tensor values; the CPU probe found no slowdown as tensor size increased with fixed keys. With eight fixed keys, increasing tensor payload from 32 bytes to 512 MiB kept repr at about 0.9 microseconds and 202 characters.
 
-This verdict does not establish the notebook hang's actual cause. Key count still matters: 100,000 keys took about 6.24 ms to format and produced 2.2 million characters; notebook transport and rendering were not measured. Reproduce the exact failing expression before changing behavior.
+This is not proof that repr or its output cannot contribute to a notebook hang. The reported hang remains unreproduced, and its actual cause is unknown. Key count still matters: 100,000 keys took about 6.24 ms to format and produced 2.2 million characters; notebook transport and rendering were not measured. Reproduce the exact failing expression before changing behavior.
 
 Investigation branch: `investigate/activation-cache-repr-1126`. Runtime behavior is unchanged. Source inspected at base commit `33387b7def1ead3a8cba532a729da5599e875873`; the real-tensor probe was run at `6580eefe4138069b50fbbb797a6323e586ca8517`.
 
 ## What the report says
 
-The emailed #1126 report says: "Printing a large cache hangs the notebook. Could repr be truncated?" It supplies no exact expression, reproduction, versions, device, key count, timings, or traceback. The symptom is reported; attribution to `ActivationCache.__repr__` is unproven. Public upstream #1126 is a different item and is not evidence for this report.
+The emailed #1126 report says: "Printing a large cache hangs the notebook. Could repr be truncated?" It supplies no exact expression, reproduction, versions, device, key count, timings, or traceback. The symptom is reported; attribution to `ActivationCache.__repr__` is unproven. The report does not say whether "large" means larger tensors, more keys, or both; a tensor-size-driven slowdown is an investigation hypothesis, not a claim established by the report. Public upstream #1126 is a different item and is not evidence for this report.
 
 ## What the current code does
 
@@ -24,15 +24,15 @@ It builds a list of keys and formats those keys. It does not traverse tensor val
 | --- | --- |
 | `repr(cache)` | Keys-only `__repr__` |
 | `str(cache)`, `print(cache)`, `f"{cache}"` | Same representation; printing additionally writes the string |
-| Bare `cache` or `display(cache)` in IPython | Standard text/plain formatter falls back to `__repr__` |
+| Bare `cache` or `display(cache)` in IPython | Expected standard text/plain path: falls back to `__repr__`; checked only in the isolated test described below |
 | `cache.cache_dict`, `dict(cache)`, or `cache[key]` | Exposes tensor values and can invoke tensor formatting |
 | Bare `model.run_with_cache(...)` | Displays the tuple, including model output (usually logits) as well as the cache |
 
-Dictionary-like methods do not make IPython expand the wrapper automatically. Custom formatters, inspectors, subclasses, or monkey patches can change the notebook path. An isolated check using the extracted method and IPython 9.18.1 confirmed the standard repr/str/print/MIME paths did not format sentinel values; that check was separate from the real-package measurements below.
+Dictionary-like methods do not make IPython expand the wrapper automatically. Custom formatters, inspectors, subclasses, or monkey patches can change the notebook path. An isolated check using the extracted method and IPython 9.18.1 confirmed the standard repr/str/print/MIME paths did not format sentinel values; that check was separate from the real-package measurements below. It did not test the real wrapper in the reporter's notebook or establish that notebook's active formatter configuration.
 
 [`HookedTransformer.run_with_cache`](../transformer_lens/HookedTransformer.py#L735) runs the model/caching hooks before constructing the wrapper. `return_cache_object=False` returns the raw dictionary. [`HookedRootModule.save_hook`](../transformer_lens/HookedRootModule.py#L483) detaches, optionally moves tensors to another device, slices, and stores them. Cache production, transfers, retained memory, and optional backward execution are separate from representation. `TransformerBridge` likewise returns a wrapper by default and can return a raw dictionary.
 
-Large key output can still be expensive to construct, transport, or render. Tensor formatting through other expressions can perform numerical formatting and device synchronization/value transfers; PyTorch normally summarizes large tensors, so print settings matter. None of these possibilities establishes the reporter's cause.
+**Untested possible causes:** excessive key output could make notebook transport or rendering slow; custom formatters or inspectors could follow a different path; formatting tensors exposed by other expressions could involve numerical formatting or device synchronization/value transfers. These are mechanisms to investigate, not observed causes of this report. The CPU probe measured key-string construction only, not notebook transport/rendering, GPU operations, or these alternative display paths. PyTorch's usual tensor summarization and print settings are background considerations, not measurements from the reporter's environment.
 
 ## CPU measurements and exact command
 
@@ -62,7 +62,7 @@ Increasing tensor payload from 32 bytes to 512 MiB under the same keys did not i
 
 ## Separate note: functools.partial repr in hook_points.py
 
-[`HookPoint.add_hook`](../transformer_lens/hook_points.py#L248) names registered hooks. A `functools.partial` representation can recursively format its bound arguments, potentially including a large dictionary of tensors. The current guard avoids formatting those bound arguments:
+[`HookPoint.add_hook`](../transformer_lens/hook_points.py#L248) names registered hooks. A `functools.partial` representation can recursively format its bound arguments. A large bound tensor dictionary is a possible expensive input, not a reproduced cause or timed result in this investigation. The code and comment establish a separate guarded path: the current guard avoids formatting those bound arguments:
 
 ```python
 full_hook.__name__ = f"partial({hook.func.__repr__()},...)"
