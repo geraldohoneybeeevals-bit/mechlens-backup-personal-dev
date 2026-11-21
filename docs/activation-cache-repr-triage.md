@@ -93,3 +93,10 @@ The acceptance failure reproduced in a diagnostic rerun (41 passed, 1 failed). O
 2. Assign model output and cache in a separate cell; time `s = repr(cache)` without displaying `s`, then inspect its length. Account for queued accelerator work when measuring device operations.
 3. Separate string formatting, standard kernel formatting, output transport, and browser rendering. Compare wrapper, dictionary, selected tensor, and output tuple independently.
 4. Capture a stack/profile during a kernel stall. Truncate keys only if excessive key output reproduces the problem; the report alone does not justify changing representation behavior.
+
+
+## Reply draft for #1126 (not posted)
+
+> Thanks for reporting this. In the checkout we tested, `ActivationCache.__repr__` formats only the keys; increasing tensor size with fixed keys did not slow it down. Could you share a minimal reproduction and the exact cell that hangs (for example, `print(cache)`, `display(cache)`, `cache.cache_dict`, or a bare `run_with_cache(...)` call)? Please include your TransformerLens version/commit and imported source path, Python/PyTorch/IPython versions, notebook frontend, CPU/GPU device, cache key count and tensor shapes, and any custom tensor print settings or display extensions.
+>
+> After creating the cache in a separate cell, could you time `s = repr(cache)` without displaying `s`, then report the elapsed time and `len(s)`? Please also say whether the kernel stays busy or only the notebook UI freezes; if the kernel stalls, an interrupt traceback or short stack/profile capture would help locate the work.
